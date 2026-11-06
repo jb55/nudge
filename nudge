@@ -8,9 +8,10 @@
 # runs from. This finds the app and execs it, so the exit status is
 # Nudge's: 0 posted, 2 not allowed, 3 failed, 64 usage, 69 app not found.
 #
-# Where it looks: $NUDGE_APP when set (and nowhere else), otherwise
-# ~/Applications, /Applications, then Spotlight by bundle id (a copy
-# installed anywhere else, say by a dmg or a Homebrew cask).
+# Where it looks: $NUDGE_APP when set (and nowhere else), otherwise the
+# bundle this script lives in (the Homebrew cask links
+# Nudge.app/Contents/Resources/nudge onto PATH), then ~/Applications,
+# /Applications, then Spotlight by bundle id.
 set -eu
 
 # Nudge with no arguments is LaunchServices relaunching it for a click,
@@ -23,15 +24,47 @@ if [ $# -eq 0 ]; then
 fi
 
 bin=Contents/MacOS/Nudge
-if [ -n "${NUDGE_APP-}" ]; then
-    [ -x "$NUDGE_APP/$bin" ] && exec "$NUDGE_APP/$bin" "$@"
-    echo "nudge: NUDGE_APP=$NUDGE_APP has no $bin" >&2
+
+# find_app: set $app to the Nudge.app to use, or return 1.
+find_app() {
+    if [ -n "${NUDGE_APP-}" ]; then
+        app=$NUDGE_APP
+        [ -x "$app/$bin" ] && return 0
+        echo "nudge: NUDGE_APP=$NUDGE_APP has no $bin" >&2
+        exit 69
+    fi
+    # Follow symlinks (Homebrew's bin/nudge) to where this script really is.
+    self=$0
+    while [ -L "$self" ]; do
+        link=$(readlink "$self")
+        case $link in /*) self=$link ;; *) self=$(dirname "$self")/$link ;; esac
+    done
+    case $self in
+        */Contents/Resources/nudge)
+            app=${self%/Contents/Resources/nudge}
+            [ -x "$app/$bin" ] && return 0 ;;
+    esac
+    for app in "$HOME/Applications/Nudge.app" /Applications/Nudge.app; do
+        [ -x "$app/$bin" ] && return 0
+    done
+    app=$(/usr/bin/mdfind 'kMDItemCFBundleIdentifier == "com.jb55.nudge"' 2>/dev/null | head -n 1)
+    [ -n "$app" ] && [ -x "$app/$bin" ] && return 0
+    return 1
+}
+
+if ! find_app; then
+    echo "nudge: Nudge.app not found; brew install --cask jb55/nudge/nudge, run ./build.sh, or set NUDGE_APP" >&2
     exit 69
 fi
-for app in "$HOME/Applications/Nudge.app" /Applications/Nudge.app; do
-    [ -x "$app/$bin" ] && exec "$app/$bin" "$@"
-done
-app=$(/usr/bin/mdfind 'kMDItemCFBundleIdentifier == "com.jb55.nudge"' 2>/dev/null | head -n 1)
-[ -n "$app" ] && [ -x "$app/$bin" ] && exec "$app/$bin" "$@"
-echo "nudge: Nudge.app not found; run ./build.sh or set NUDGE_APP" >&2
-exit 69
+
+# `nudge --authorize` is the first-run step after an install that didn't run
+# build.sh (the Homebrew cask): posting from the bare executable is refused
+# until LaunchServices knows the bundle and has launched it once, so
+# register it and launch it through LaunchServices, which asks for
+# notification permission (only the first time) and exits.
+if [ "$*" = --authorize ]; then
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
+    exec /usr/bin/open -W -n "$app" --args --authorize
+fi
+
+exec "$app/$bin" "$@"

@@ -16,7 +16,15 @@
 # builds as before and --avatar falls back to a plain notification.
 #
 # It also installs the `nudge` wrapper into $NUDGE_BIN_DIR (default
-# ~/.local/bin), which finds the app and runs its executable.
+# ~/.local/bin), which finds the app and runs its executable. A copy of the
+# wrapper goes inside the bundle too (Contents/Resources/nudge), which is
+# what the Homebrew cask links onto PATH.
+#
+# NUDGE_REGISTER=0 builds and signs only: no LaunchServices registration,
+# no --authorize launch, no wrapper install. release.sh uses it to stage a
+# release build without registering a second copy of the bundle id.
+# NUDGE_TIMESTAMP is passed to codesign --timestamp ("none" by default; an
+# empty value asks Apple's timestamp server, which notarization needs).
 #
 # The bundle is assembled in place, not built elsewhere and copied: a
 # second registered copy with the same bundle id can be the one macOS
@@ -29,6 +37,8 @@ dev=${SWIFT_DEVELOPER_DIR:-/Library/Developer/CommandLineTools}
 dest=${NUDGE_INSTALL_DIR:-$HOME/Applications}
 profile=${NUDGE_PROFILE:-$HOME/.config/nudge/nudge.provisionprofile}
 bindir=${NUDGE_BIN_DIR:-$HOME/.local/bin}
+register=${NUDGE_REGISTER:-1}
+timestamp=${NUDGE_TIMESTAMP-none}
 
 app=$dest/Nudge.app
 tmp=$(mktemp -d)
@@ -40,6 +50,8 @@ env -u SDKROOT DEVELOPER_DIR="$dev" "$dev/usr/bin/swiftc" -O -swift-version 5 \
     -sdk "$dev/SDKs/MacOSX.sdk" \
     -o "$app/Contents/MacOS/Nudge" "$here/main.swift"
 cp "$here/Info.plist" "$app/Contents/Info.plist"
+cp "$here/nudge" "$app/Contents/Resources/nudge"
+chmod 755 "$app/Contents/Resources/nudge"
 
 # icon.png is 1024px, drawn by make-icon.py.
 for s in 16 32 128 256 512; do
@@ -73,9 +85,13 @@ PLIST
     echo "embedding $profile (team $team)"
 fi
 
-/usr/bin/codesign --force --options runtime --timestamp=none --sign "$identity" \
+/usr/bin/codesign --force --options runtime --timestamp${timestamp:+=$timestamp} --sign "$identity" \
     ${entitlements:+--entitlements "$entitlements"} "$app"
 /usr/bin/codesign --verify --strict "$app"
+if [ "$register" = 0 ]; then
+    echo "built $app (not registered)"
+    exit 0
+fi
 # Until LaunchServices knows the bundle, posting from the bare executable
 # fails with "Notifications are not allowed for this application".
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"

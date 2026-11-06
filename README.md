@@ -11,7 +11,25 @@ has no effect on macOS 26), and osascript shows Script Editor's, takes no
 image and no click URL. nudge is a small signed app bundle that posts
 through `UNUserNotificationCenter`, so the notifications are its own.
 
-## Build and install
+## Install
+
+With [Homebrew](https://brew.sh):
+
+```
+brew install --cask jb55/nudge/nudge
+nudge --authorize
+```
+
+The cask installs a notarized `Nudge.app` into `/Applications` and links
+the `nudge` command onto your PATH. `nudge --authorize` registers the app
+with macOS and asks for notification permission; run it once after
+installing. `brew upgrade --cask nudge` updates it in place.
+
+Keep one copy: if you also build from source into `~/Applications`, remove
+one of them, since two registered apps with the same bundle id can make
+macOS relaunch the wrong one when a notification is clicked.
+
+## Build from source
 
 ```
 ./build.sh
@@ -30,6 +48,10 @@ with `--authorize`. It also installs the `nudge` command into
 - `SWIFT_DEVELOPER_DIR` picks the toolchain (default
   `/Library/Developer/CommandLineTools`). It's not `DEVELOPER_DIR`, which a
   nix shell points at an SDK with no `swiftc`.
+- `NUDGE_REGISTER=0` only builds and signs: no LaunchServices
+  registration, no `--authorize` launch, no wrapper install.
+  `NUDGE_TIMESTAMP` is passed to `codesign --timestamp` (`none` by
+  default; empty asks Apple's server).
 - `make-icon.py` draws `icon.png` (stdlib only); rerun it after changing
   the icon. Notification Center keeps its own copy of an app's icon, and
   on macOS 26 neither killing its processes nor logging out drops that
@@ -64,8 +86,9 @@ posting.
 own executable (`Nudge.app/Contents/MacOS/Nudge`), because macOS ties a
 notification, its icon and its permission to the app bundle that posts it,
 so the wrapper finds the app and runs that. It looks in `$NUDGE_APP` when
-that's set, otherwise `~/Applications`, `/Applications`, then Spotlight by
-bundle id. Calling the executable directly works too.
+that's set, otherwise the bundle it lives in (the cask links
+`Nudge.app/Contents/Resources/nudge`), `~/Applications`, `/Applications`,
+then Spotlight by bundle id. Calling the executable directly works too.
 
 ## Avatars
 
@@ -126,6 +149,28 @@ configured for that id in `$XDG_CONFIG_HOME/nudge/actions.json` (default
   "Options"; the Alerts style keeps them on screen.
 - A failure to run the command goes to the unified log:
   `log show --last 10m --predicate 'process == "Nudge"'`.
+
+## Releasing
+
+`release.sh` makes the zip the cask downloads. It builds with `build.sh`
+into a temporary folder (`NUDGE_REGISTER=0`, so that copy is never
+registered), signs with a Developer ID Application certificate and a secure
+timestamp, notarizes, staples, and writes `dist/Nudge-<version>.zip`, the
+version being `CFBundleShortVersionString` from `Info.plist`. It prints the
+sha256 and the `gh release create` command; it publishes nothing itself.
+
+- Once: a Developer ID Application certificate in the keychain, and
+  `xcrun notarytool store-credentials nudge-notary`
+  (`NUDGE_NOTARY_PROFILE` names another profile).
+- `NUDGE_PROFILE` embeds a Developer ID provisioning profile with
+  Communication Notifications, for `--avatar`. Unlike `build.sh`,
+  `release.sh` embeds one only when this is set.
+- `CODESIGN_IDENTITY=- NUDGE_NOTARIZE=0 ./release.sh` tries the script out
+  without a certificate.
+
+Then bump `version` and `sha256` in
+[jb55/homebrew-nudge](https://github.com/jb55/homebrew-nudge)'s
+`Casks/nudge.rb`.
 
 ## History
 

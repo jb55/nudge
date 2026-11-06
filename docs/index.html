@@ -343,7 +343,14 @@ nudge <span class="f">--group</span> deploy <span class="f">--title</span> <span
 <section id="install">
   <div class="wrap">
     <h2>Install</h2>
-    <p class="lede">nudge builds from source with the Xcode Command Line Tools; no Xcode project, no dependencies. It needs macOS 13 or later.</p>
+    <p class="lede">Install the notarized app with Homebrew, or build it from source with the Xcode Command Line Tools. It needs macOS 13 or later.</p>
+<pre>brew install <span class="f">--cask</span> jb55/nudge/nudge
+nudge <span class="f">--authorize</span>   <span class="c"># once: registers Nudge and asks for notification permission</span>
+
+nudge <span class="f">--title</span> Hello <span class="f">--message</span> <span class="s">"from the command line"</span></pre>
+    <p>The cask puts <code>Nudge.app</code> in <code>/Applications</code> and links the <code>nudge</code> command onto your PATH. <code>brew upgrade --cask nudge</code> updates it in place. Keep one copy: if you also build from source, remove one of the two, since two registered apps with the same bundle id can make macOS relaunch the wrong one for a click.</p>
+    <h3>From source</h3>
+    <p>No Xcode project, no dependencies.</p>
 <pre><span class="c"># once, if you don't have the Command Line Tools</span>
 xcode-select --install
 
