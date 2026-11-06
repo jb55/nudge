@@ -4,7 +4,7 @@
 //
 //   Nudge.app/Contents/MacOS/Nudge --title T --message M
 //       [--subtitle S] [--url U] [--image PNG] [--group G] [--thread T]
-//       [--action ID=LABEL]... [--env KEY=VALUE]...
+//       [--action ID=LABEL]... [--env KEY=VALUE]... [--avatar PNG [--sender NAME]]
 //   Nudge.app/Contents/MacOS/Nudge --authorize
 //
 // Posting exits once the notification is added. The request's identifier
@@ -18,13 +18,24 @@
 // runs that id's command, detached, with each --env pair and NUDGE_ACTION
 // in its environment. The command only ever comes from that local file at
 // click time, never from the notification, and the caller's values only
-// ever reach it as env vars. Exit status: 0 posted, 2 not allowed, 3 failed, 64 usage.
+// ever reach it as env vars.
+//
+// --avatar makes it a communication notification: an incoming message from
+// --sender (default: the title) whose picture is the avatar, which macOS
+// draws as the main icon with the app's own icon as a badge. That needs
+// the com.apple.developer.usernotifications.communication entitlement
+// (build.sh signs with it when a provisioning profile is present); without
+// it, or on any error, the notification posts as a plain one. macOS shows
+// only the sender and the body of such a notification, so the title and
+// subtitle move to the body's first line. Exit status: 0 posted, 2 not allowed, 3 failed, 64 usage.
 
 import AppKit
+import Intents
 import UserNotifications
 
 struct Post {
     var title = "", subtitle = "", message = "", url = "", image = "", group = "", thread = ""
+    var avatar = "", sender = ""
     var actions: [(id: String, label: String)] = []
     var context: [String: String] = [:]  // --env: env var name -> value
 }
@@ -42,6 +53,10 @@ enum Mode {
     case post(Post)
     case authorize
     case launched  // by macOS, for a click
+}
+
+func warn(_ msg: String) {
+    FileHandle.standardError.write(("nudge: " + msg + "\n").data(using: .utf8)!)
 }
 
 func fail(_ code: Int32, _ msg: String) -> Never {
@@ -65,6 +80,8 @@ func parse(_ args: [String]) -> Mode {
         case "--image": p.image = v
         case "--group": p.group = v
         case "--thread": p.thread = v
+        case "--avatar": p.avatar = v
+        case "--sender": p.sender = v
         case "--action":
             guard let eq = v.firstIndex(of: "="), eq != v.startIndex else {
                 fail(64, "--action wants ID=LABEL")
@@ -154,11 +171,13 @@ final class Delegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         }
         let id = p.group.isEmpty ? UUID().uuidString : p.group
         let post = {
-            center.add(UNNotificationRequest(identifier: id, content: c, trigger: nil)) { err in
-                if let err { fail(3, "post failed: \(err.localizedDescription)") }
-                // Linger so a banner shown while we're frontmost-eligible
-                // (willPresent below) isn't cut off by our exit.
-                self.exitAfter(0.5, code: 0, nil)
+            self.communicate(c, p) { content in
+                center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { err in
+                    if let err { fail(3, "post failed: \(err.localizedDescription)") }
+                    // Linger so a banner shown while we're frontmost-eligible
+                    // (willPresent below) isn't cut off by our exit.
+                    self.exitAfter(0.5, code: 0, nil)
+                }
             }
         }
         if p.actions.isEmpty { return post() }
@@ -173,6 +192,42 @@ final class Delegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         center.getNotificationCategories { have in
             center.setNotificationCategories(have.filter { $0.identifier != cat.identifier }.union([cat]))
             post()
+        }
+    }
+
+    // --avatar: rewrite the content as an incoming message from the sender,
+    // whose picture macOS shows as the main icon. Any failure posts `c` as is.
+    func communicate(_ c: UNMutableNotificationContent, _ p: Post,
+                     _ then: @escaping (UNNotificationContent) -> Void) {
+        guard !p.avatar.isEmpty else { return then(c) }
+        guard let data = FileManager.default.contents(atPath: p.avatar) else {
+            warn("avatar \(p.avatar) unreadable; posting without it")
+            return then(c)
+        }
+        let name = p.sender.isEmpty ? p.title : p.sender
+        // A message notification shows only the sender and the body, so the
+        // title and subtitle (when they say more than the name) lead the body.
+        let head = [p.title == name ? "" : p.title, p.subtitle].filter { !$0.isEmpty }
+        if !head.isEmpty {
+            c.body = head.joined(separator: " · ") + (c.body.isEmpty ? "" : "\n" + c.body)
+        }
+        let sender = INPerson(personHandle: INPersonHandle(value: name, type: .unknown),
+                              nameComponents: nil, displayName: name, image: INImage(imageData: data),
+                              contactIdentifier: nil, customIdentifier: name)
+        let intent = INSendMessageIntent(recipients: nil, outgoingMessageType: .outgoingMessageText,
+                                         content: c.body, speakableGroupName: nil,
+                                         conversationIdentifier: c.threadIdentifier, serviceName: nil,
+                                         sender: sender, attachments: nil)
+        let interaction = INInteraction(intent: intent, response: nil)
+        interaction.direction = .incoming
+        interaction.donate { err in
+            if let err { warn("donating the message failed: \(err.localizedDescription)") }
+            do {
+                then(try c.updating(from: intent))
+            } catch {
+                warn("avatar skipped: \(error.localizedDescription)")
+                then(c)
+            }
         }
     }
 

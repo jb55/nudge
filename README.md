@@ -38,7 +38,7 @@ posts exit 2, turn Nudge on in System Settings > Notifications.
 ```
 ~/Applications/Nudge.app/Contents/MacOS/Nudge --title T --message M \
     [--subtitle S] [--url U] [--image PNG] [--group G] [--thread T] \
-    [--action ID=LABEL]... [--env KEY=VALUE]...
+    [--action ID=LABEL]... [--env KEY=VALUE]... [--avatar PNG [--sender NAME]]
 ```
 
 - `--group`: the request identifier. A later post with the same group
@@ -52,6 +52,35 @@ posts exit 2, turn Nudge on in System Settings > Notifications.
 
 Exit status: 0 posted, 2 notifications not allowed, 3 failed, 64 usage.
 `Nudge --authorize` asks for permission without posting.
+
+## Avatars
+
+`--avatar PNG` (with `--sender NAME`, default the title) posts the
+notification as an incoming message from that person: macOS draws the
+avatar as the main icon, with Nudge's bell as a small badge. Any image
+works, so it can be a person's picture or a per-source icon. macOS shows
+only the sender's name and the body of such a notification, so nudge moves
+the title and subtitle to the body's first line (the title only when it
+isn't the sender's name). `--image` still sets the thumbnail.
+
+This needs Apple's Communication Notifications entitlement, which a
+provisioning profile has to grant:
+
+1. In the developer portal, create the App ID `com.jb55.nudge` with the
+   Communication Notifications capability, register your Mac (Devices, +,
+   Platform: **macOS**; an Apple silicon Mac's Provisioning UDID from
+   `system_profiler SPHardwareDataType` registered under iOS shows up as
+   an "iPod" and can't be used), and make a macOS App Development profile
+   for that App ID, your certificate and the Mac.
+2. Save it as `~/.config/nudge/nudge.provisionprofile` (or point
+   `NUDGE_PROFILE` at it) and run `./build.sh`, which embeds it and signs
+   with the entitlement. It says `embedding …` when it does.
+
+Without a profile, or if anything about the message fails, `--avatar` falls
+back to a plain notification. Checked on macOS 26.6 with an app posting its
+own notifications, no notification service extension. Message
+notifications can be allowed through a Focus, which plain ones aren't by
+default.
 
 ## Buttons
 

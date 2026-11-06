@@ -9,6 +9,12 @@
 # the toolchain, the Command Line Tools by default. It's not DEVELOPER_DIR,
 # which a nix shell points at a nix SDK with no swiftc.
 #
+# NUDGE_PROFILE (default ~/.config/nudge/nudge.provisionprofile) is a
+# macOS App Development profile for com.jb55.nudge with the Communication
+# Notifications capability. When it's there, it's embedded and the app is
+# signed with that entitlement, which --avatar needs. Without it, nudge
+# builds as before and --avatar falls back to a plain notification.
+#
 # The bundle is assembled in place, not built elsewhere and copied: a
 # second registered copy with the same bundle id can be the one macOS
 # relaunches when a notification is clicked.
@@ -18,6 +24,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 identity=${CODESIGN_IDENTITY-"Apple Development: Bill Casarin (EYLQ67VC2R)"}
 dev=${SWIFT_DEVELOPER_DIR:-/Library/Developer/CommandLineTools}
 dest=${NUDGE_INSTALL_DIR:-$HOME/Applications}
+profile=${NUDGE_PROFILE:-$HOME/.config/nudge/nudge.provisionprofile}
 
 app=$dest/Nudge.app
 tmp=$(mktemp -d)
@@ -38,7 +45,32 @@ for s in 16 32 128 256 512; do
 done
 /usr/bin/iconutil -c icns -o "$app/Contents/Resources/AppIcon.icns" "$tmp/AppIcon.iconset"
 
-/usr/bin/codesign --force --options runtime --timestamp=none --sign "$identity" "$app"
+entitlements=
+if [ -f "$profile" ]; then
+    /usr/bin/security cms -D -i "$profile" > "$tmp/profile.plist"
+    team=$(/usr/bin/plutil -extract TeamIdentifier.0 raw "$tmp/profile.plist")
+    bundle=$(/usr/bin/plutil -extract CFBundleIdentifier raw "$here/Info.plist")
+    cp "$profile" "$app/Contents/embedded.provisionprofile"
+    entitlements=$tmp/nudge.entitlements
+    cat > "$entitlements" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.application-identifier</key>
+	<string>$team.$bundle</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>$team</string>
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
+</dict>
+</plist>
+PLIST
+    echo "embedding $profile (team $team)"
+fi
+
+/usr/bin/codesign --force --options runtime --timestamp=none --sign "$identity" \
+    ${entitlements:+--entitlements "$entitlements"} "$app"
 /usr/bin/codesign --verify --strict "$app"
 # Until LaunchServices knows the bundle, posting from the bare executable
 # fails with "Notifications are not allowed for this application".
