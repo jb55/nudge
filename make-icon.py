@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Draw Nudge's app icon into icon.png. Stdlib only.
 
-A white bell on macOS's rounded-square icon plate (824 of 1024 px),
-rasterized from signed distance functions and written as an RGBA PNG.
-Rerun after changing the shape or colour; build.sh turns it into an .icns.
+A bold white lowercase n on macOS's rounded-square icon plate (824 of
+1024 px), shaded with a "sunset" diagonal gradient, orange at the top left
+to pink at the bottom right. Rasterized from signed distance functions and
+written as an RGBA PNG. The strokes are heavy so the n still reads as the
+small badge macOS puts on avatar notifications. Rerun after changing the
+shape or colour; build.sh turns it into an .icns.
 """
 
 import math
@@ -12,7 +15,7 @@ import struct
 import zlib
 
 SIZE = 1024
-PLATE = (236, 132, 36)
+SUNSET = ((255, 170, 60), (235, 60, 130))  # top-left, bottom-right
 WHITE = (255, 255, 255)
 
 
@@ -41,12 +44,21 @@ def rounded_rect(cx, cy, hw, hh, r):
     return d
 
 
-def trapezoid(cy, hh, top_hw, bottom_hw):
-    """Approximate: a box whose half-width widens linearly downward."""
+def capsule(ax, ay, bx, by, r):
+    """A segment from a to b thickened to radius r (round ends)."""
     def d(x, y):
-        t = max(0.0, min(1.0, (y - (cy - hh)) / (2 * hh)))
-        hw = top_hw + (bottom_hw - top_hw) * t
-        return max(abs(x) - hw, abs(y - cy) - hh)
+        px, py, vx, vy = x - ax, y - ay, bx - ax, by - ay
+        h = max(0.0, min(1.0, (px * vx + py * vy) / (vx * vx + vy * vy)))
+        return math.hypot(px - vx * h, py - vy * h) - r
+    return d
+
+
+def upper_arc(cx, cy, R, r):
+    """The top half of a ring of radius R, thickened to r, round ends."""
+    def d(x, y):
+        if y <= cy:
+            return abs(math.hypot(x - cx, y - cy) - R) - r
+        return min(math.hypot(x - cx + R, y - cy), math.hypot(x - cx - R, y - cy)) - r
     return d
 
 
@@ -54,12 +66,14 @@ def union(*fs):
     return lambda x, y: min(f(x, y) for f in fs)
 
 
-BELL = union(
-    circle(0, -0.16, 0.3),                 # crown
-    trapezoid(0.08, 0.24, 0.3, 0.4),       # flaring body
-    rounded_rect(0, 0.33, 0.5, 0.06, 0.06),  # lip
-    circle(0, 0.46, 0.11),                 # clapper
-    circle(0, -0.5, 0.07),                 # loop
+# The n: a left stem that rises a little above the arch, the arch, and a
+# right stem, all strokes 0.34 wide. DY centres it: the arch top and the
+# stem bottoms both sit 0.52 from the middle.
+W, R, DY = 0.17, 0.3, -0.05
+N = union(
+    capsule(-R, -0.27 + DY, -R, 0.4 + DY, W),
+    upper_arc(0, DY, R, W),
+    capsule(R, DY, R, 0.4 + DY, W),
 )
 PLATE_SDF = rounded_rect(0, 0, 0.805, 0.805, 0.36)
 
@@ -78,8 +92,10 @@ def render(size=SIZE):
             a = cover(PLATE_SDF(x, y), px)
             if a <= 0:
                 continue
-            c = cover(BELL(x, y), px)
-            r, g, b = (p + (w - p) * c for p, w in zip(PLATE, WHITE))
+            t = max(0.0, min(1.0, (x + y + 1.6) / 3.2))
+            plate = [p + (q - p) * t for p, q in zip(*SUNSET)]
+            c = cover(N(x, y), px)
+            r, g, b = (p + (w - p) * c for p, w in zip(plate, WHITE))
             k = (j * size + i) * 4
             out[k:k + 4] = bytes((round(r), round(g), round(b), round(a * 255)))
     return out

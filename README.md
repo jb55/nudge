@@ -1,3 +1,5 @@
+<img src="icon.png" alt="nudge icon: a white n on an orange-to-pink rounded square" width="128" align="right">
+
 # nudge
 
 Post macOS notifications from the command line, from an app of your own:
@@ -29,7 +31,10 @@ with `--authorize`. It also installs the `nudge` command into
   `/Library/Developer/CommandLineTools`). It's not `DEVELOPER_DIR`, which a
   nix shell points at an SDK with no `swiftc`.
 - `make-icon.py` draws `icon.png` (stdlib only); rerun it after changing
-  the bell.
+  the icon. Notification Center keeps its own copy of an app's icon, and
+  on macOS 26 neither killing its processes nor logging out drops that
+  copy: a new icon shows on notifications only after rebooting (Finder
+  and the Dock pick it up straight away).
 
 The first build asks for notification permission. If no prompt appears and
 posts exit 2, turn Nudge on in System Settings > Notifications.
@@ -66,7 +71,7 @@ bundle id. Calling the executable directly works too.
 
 `--avatar PNG` (with `--sender NAME`, default the title) posts the
 notification as an incoming message from that person: macOS draws the
-avatar as the main icon, with Nudge's bell as a small badge. Any image
+avatar as the main icon, with Nudge's icon as a small badge. Any image
 works, so it can be a person's picture or a per-source icon. macOS shows
 only the sender's name and the body of such a notification, so nudge moves
 the title and subtitle to the body's first line (the title only when it
