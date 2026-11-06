@@ -1,0 +1,37 @@
+#!/bin/sh
+# nudge: post a macOS notification from Nudge.app.
+#
+#   nudge --title T --message M [flags...]    (see README.md)
+#
+# The posting has to happen in Nudge.app's own executable, since macOS ties
+# the notification, its icon and its permission to the bundle the process
+# runs from. This finds the app and execs it, so the exit status is
+# Nudge's: 0 posted, 2 not allowed, 3 failed, 64 usage, 69 app not found.
+#
+# Where it looks: $NUDGE_APP when set (and nowhere else), otherwise
+# ~/Applications, /Applications, then Spotlight by bundle id (a copy
+# installed anywhere else, say by a dmg or a Homebrew cask).
+set -eu
+
+# Nudge with no arguments is LaunchServices relaunching it for a click,
+# not a post, so a bare `nudge` prints usage instead.
+if [ $# -eq 0 ]; then
+    echo "usage: nudge --title T --message M [--subtitle S] [--url U] [--image PNG]" >&2
+    echo "       [--group G] [--thread T] [--action ID=LABEL]... [--env KEY=VALUE]..." >&2
+    echo "       [--avatar PNG [--sender NAME]]       (see README.md)" >&2
+    exit 64
+fi
+
+bin=Contents/MacOS/Nudge
+if [ -n "${NUDGE_APP-}" ]; then
+    [ -x "$NUDGE_APP/$bin" ] && exec "$NUDGE_APP/$bin" "$@"
+    echo "nudge: NUDGE_APP=$NUDGE_APP has no $bin" >&2
+    exit 69
+fi
+for app in "$HOME/Applications/Nudge.app" /Applications/Nudge.app; do
+    [ -x "$app/$bin" ] && exec "$app/$bin" "$@"
+done
+app=$(/usr/bin/mdfind 'kMDItemCFBundleIdentifier == "com.jb55.nudge"' 2>/dev/null | head -n 1)
+[ -n "$app" ] && [ -x "$app/$bin" ] && exec "$app/$bin" "$@"
+echo "nudge: Nudge.app not found; run ./build.sh or set NUDGE_APP" >&2
+exit 69

@@ -15,6 +15,9 @@
 # signed with that entitlement, which --avatar needs. Without it, nudge
 # builds as before and --avatar falls back to a plain notification.
 #
+# It also installs the `nudge` wrapper into $NUDGE_BIN_DIR (default
+# ~/.local/bin), which finds the app and runs its executable.
+#
 # The bundle is assembled in place, not built elsewhere and copied: a
 # second registered copy with the same bundle id can be the one macOS
 # relaunches when a notification is clicked.
@@ -25,6 +28,7 @@ identity=${CODESIGN_IDENTITY-"Apple Development: Bill Casarin (EYLQ67VC2R)"}
 dev=${SWIFT_DEVELOPER_DIR:-/Library/Developer/CommandLineTools}
 dest=${NUDGE_INSTALL_DIR:-$HOME/Applications}
 profile=${NUDGE_PROFILE:-$HOME/.config/nudge/nudge.provisionprofile}
+bindir=${NUDGE_BIN_DIR:-$HOME/.local/bin}
 
 app=$dest/Nudge.app
 tmp=$(mktemp -d)
@@ -80,3 +84,8 @@ fi
 # --authorize asks for permission (once) and exits.
 /usr/bin/open -W -n "$app" --args --authorize || true
 echo "installed $app"
+mkdir -p "$bindir"
+cp "$here/nudge" "$bindir/nudge.tmp" && mv -f "$bindir/nudge.tmp" "$bindir/nudge"
+chmod 755 "$bindir/nudge"
+echo "installed $bindir/nudge"
+case ":$PATH:" in *":$bindir:"*) ;; *) echo "note: $bindir is not on PATH" ;; esac

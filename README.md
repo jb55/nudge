@@ -19,7 +19,8 @@ compiles `main.swift` with the Command Line Tools' `swiftc` (no Xcode
 project), assembles `~/Applications/Nudge.app` (`$NUDGE_INSTALL_DIR`
 overrides the folder), makes its `.icns` from `icon.png` with `sips` and
 `iconutil`, signs it, registers it with LaunchServices, and launches it once
-with `--authorize`.
+with `--authorize`. It also installs the `nudge` command into
+`~/.local/bin` (`$NUDGE_BIN_DIR` overrides the folder).
 
 - `CODESIGN_IDENTITY` picks the signing identity (default: the author's
   Apple Development certificate; `security find-identity -v -p codesigning`
@@ -36,7 +37,7 @@ posts exit 2, turn Nudge on in System Settings > Notifications.
 ## Posting
 
 ```
-~/Applications/Nudge.app/Contents/MacOS/Nudge --title T --message M \
+nudge --title T --message M \
     [--subtitle S] [--url U] [--image PNG] [--group G] [--thread T] \
     [--action ID=LABEL]... [--env KEY=VALUE]... [--avatar PNG [--sender NAME]]
 ```
@@ -50,8 +51,16 @@ posts exit 2, turn Nudge on in System Settings > Notifications.
 - `--url`: opened when the notification is clicked. macOS relaunches the
   app for the click, so this works after the posting process has exited.
 
-Exit status: 0 posted, 2 notifications not allowed, 3 failed, 64 usage.
-`Nudge --authorize` asks for permission without posting.
+Exit status: 0 posted, 2 notifications not allowed, 3 failed, 64 usage,
+69 Nudge.app not found. `nudge --authorize` asks for permission without
+posting.
+
+`nudge` is a small shell wrapper. The post has to come from Nudge.app's
+own executable (`Nudge.app/Contents/MacOS/Nudge`), because macOS ties a
+notification, its icon and its permission to the app bundle that posts it,
+so the wrapper finds the app and runs that. It looks in `$NUDGE_APP` when
+that's set, otherwise `~/Applications`, `/Applications`, then Spotlight by
+bundle id. Calling the executable directly works too.
 
 ## Avatars
 
