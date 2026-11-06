@@ -20,8 +20,8 @@ brew install --cask jb55/nudge/nudge
 nudge --authorize
 ```
 
-The cask installs a notarized `Nudge.app` into `/Applications` and links
-the `nudge` command onto your PATH. `nudge --authorize` registers the app
+The cask installs a notarized `Nudge.app` into `/Applications`, with
+avatars enabled, and links the `nudge` command onto your PATH. `nudge --authorize` registers the app
 with macOS and asks for notification permission; run it once after
 installing. `brew upgrade --cask nudge` updates it in place.
 
@@ -100,8 +100,9 @@ only the sender's name and the body of such a notification, so nudge moves
 the title and subtitle to the body's first line (the title only when it
 isn't the sender's name). `--image` still sets the thumbnail.
 
-This needs Apple's Communication Notifications entitlement, which a
-provisioning profile has to grant:
+This needs Apple's Communication Notifications entitlement. The Homebrew
+install has it. A build from source needs a provisioning profile to grant
+it:
 
 1. In the developer portal, create the App ID `com.jb55.nudge` with the
    Communication Notifications capability, register your Mac (Devices, +,
