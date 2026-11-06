@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>com.jb55.hookstr.gitlab-notify</string>
+	<string>com.jb55.nudge</string>
 	<key>CFBundleName</key>
-	<string>GitLabNotify</string>
+	<string>Nudge</string>
 	<key>CFBundleDisplayName</key>
-	<string>GitLab Notify</string>
+	<string>Nudge</string>
 	<key>CFBundleExecutable</key>
-	<string>GitLabNotify</string>
+	<string>Nudge</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
