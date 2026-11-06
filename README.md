@@ -160,7 +160,7 @@ version being `CFBundleShortVersionString` from `Info.plist`. It prints the
 sha256 and the `gh release create` command; it publishes nothing itself.
 
 - Once: a Developer ID Application certificate in the keychain, and
-  `xcrun notarytool store-credentials nudge-notary`
+  `/Library/Developer/CommandLineTools/usr/bin/notarytool store-credentials nudge-notary`
   (`NUDGE_NOTARY_PROFILE` names another profile).
 - `NUDGE_PROFILE` embeds a Developer ID provisioning profile with
   Communication Notifications, for `--avatar`. Unlike `build.sh`,

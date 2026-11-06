@@ -14,9 +14,12 @@
 # CODESIGN_IDENTITY: default "Developer ID Application" (codesign picks the
 #   one matching certificate in the keychain).
 # NUDGE_NOTARY_PROFILE: notarytool keychain profile (default nudge-notary),
-#   made once with `xcrun notarytool store-credentials nudge-notary`.
+#   made once with `$SWIFT_DEVELOPER_DIR/usr/bin/notarytool store-credentials nudge-notary`.
 # NUDGE_NOTARIZE=0 skips notarizing and stapling, for trying the script
 #   out without a Developer ID (say with CODESIGN_IDENTITY=-).
+# SWIFT_DEVELOPER_DIR: where notarytool and stapler come from, as in
+#   build.sh (default the Command Line Tools). Not xcrun, which follows a
+#   nix shell's DEVELOPER_DIR to an SDK that has neither.
 # NUDGE_PROFILE: a Developer ID provisioning profile with Communication
 #   Notifications, for --avatar. Unlike build.sh, release.sh embeds one only
 #   when this is set, so a development profile never ends up in a release.
@@ -27,6 +30,7 @@ version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$here/Info.pl
 identity=${CODESIGN_IDENTITY-"Developer ID Application"}
 notarize=${NUDGE_NOTARIZE:-1}
 notary=${NUDGE_NOTARY_PROFILE:-nudge-notary}
+dev=${SWIFT_DEVELOPER_DIR:-/Library/Developer/CommandLineTools}
 dist=$here/dist
 zip=$dist/Nudge-$version.zip
 
@@ -44,9 +48,9 @@ mkdir -p "$dist"
 rm -f "$zip"
 /usr/bin/ditto -c -k --keepParent "$app" "$zip"
 if [ "$notarize" != 0 ]; then
-    xcrun notarytool submit "$zip" --keychain-profile "$notary" --wait
-    xcrun stapler staple "$app"
-    xcrun stapler validate "$app"
+    "$dev/usr/bin/notarytool" submit "$zip" --keychain-profile "$notary" --wait
+    "$dev/usr/bin/stapler" staple "$app"
+    "$dev/usr/bin/stapler" validate "$app"
     /usr/sbin/spctl -a -vv -t exec "$app"
     # Zip again so the release carries the stapled ticket.
     rm -f "$zip"
