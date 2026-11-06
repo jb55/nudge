@@ -1,4 +1,4 @@
-<img src="icon.png" alt="nudge icon: a white n on an orange-to-pink rounded square" width="128" align="right">
+<p align="center"><img src="icon.png" alt="nudge icon: a white n on an orange-to-pink rounded square" width="128"></p>
 
 # nudge
 
